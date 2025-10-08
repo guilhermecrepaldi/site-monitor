@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — site-monitor{% endblock %}
+
+{% block content %}
+<!-- Stats Cards -->
+<div class="row g-4 mb-4">
+    <div class="col-md-3">
+        <div class="card text-center p-3">
+            <div class="stat-number">{{ stats.total_sites }}</div>
+            <div class="stat-label">
+                <i class="bi bi-globe me-1"></i>Total Sites
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center p-3">
+            <div class="stat-number">{{ stats.mudancas_hoje }}</div>
+            <div class="stat-label">
+                <i class="bi bi-arrow-repeat me-1"></i>Mudancas Hoje
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center p-3">
+            <div class="stat-number">{{ stats.alertas_ativos }}</div>
+            <div class="stat-label">
+                <i class="bi bi-bell-fill me-1"></i>Alertas Ativos
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center p-3">
+            <div class="stat-number">{{ stats.sites_monitorando }}</div>
+            <div class="stat-label">
+                <i class="bi bi-activity me-1"></i>Monitorando
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Sites list -->
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-list-ul me-1"></i>Sites Monitorados</span>
+        <a href="/add" class="btn btn-sm btn-primary">
+            <i class="bi bi-plus-lg"></i> Adicionar
+        </a>
+    </div>
+    <div class="card-body p-0">
+        {% if sites %}
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Nome</th>
+                        <th>URL</th>
+                        <th>Intervalo</th>
+                        <th>Ultima verificacao</th>
+                        <th>Status</th>
+                        <th>Acoes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for site in sites %}
+                    <tr>
+                        <td>
+                            <strong>{{ site.nome or site.url.split('//')[1].split('/')[0] }}</strong>
+                        </td>
+                        <td>
+                            <a href="{{ site.url }}" target="_blank" class="text-break">
+                                {{ site.url[:50] }}{% if site.url|length > 50 %}...{% endif %}
+                            </a>
+                        </td>
+                        <td>
+                            <span class="badge bg-secondary">
+                                {% if site.intervalo_minutos >= 60 %}
+                                    {{ (site.intervalo_minutos / 60)|int }}h
+                                {% else %}
+                                    {{ site.intervalo_minutos }}min
+                                {% endif %}
+                            </span>
+                        </td>
+                        <td>
+                            {% if site.ultima_verificacao %}
+                                <small class="text-muted">{{ site.ultima_verificacao[:19] }}</small>
+                            {% else %}
+                                <span class="text-warning"><i class="bi bi-hourglass-split"></i> Pendente</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if site.ativo %}
+                                <span class="badge bg-success">Ativo</span>
+                            {% else %}
+                                <span class="badge bg-secondary">Inativo</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <a href="/site/{{ site.id }}" class="btn btn-sm btn-outline-secondary">
+                                <i class="bi bi-eye"></i> Ver
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center p-5">
+            <i class="bi bi-globe2" style="font-size: 3rem; color: var(--text-muted);"></i>
+            <p class="mt-3 text-muted">Nenhum site cadastrado ainda.</p>
+            <a href="/add" class="btn btn-primary">
+                <i class="bi bi-plus-lg"></i> Adicionar primeiro site
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Alertas Recentes -->
+<div class="card">
+    <div class="card-header">
+        <i class="bi bi-bell me-1"></i>Alertas Recentes
+    </div>
+    <div class="card-body p-0">
+        {% if alertas %}
+        <div class="list-group list-group-flush">
+            {% for alerta in alertas %}
+            <div class="list-group-item alert-item {{ 'unread' if not alerta.lido else '' }}">
+                <div class="d-flex w-100 justify-content-between">
+                    <h6 class="mb-1">
+                        {% if alerta.tipo == 'mudanca' %}
+                            <span class="badge bg-success me-2">MUDANCA</span>
+                        {% elif alerta.tipo == 'erro' %}
+                            <span class="badge bg-danger me-2">ERRO</span>
+                        {% else %}
+                            <span class="badge bg-info me-2">{{ alerta.tipo.upper() }}</span>
+                        {% endif %}
+                        {{ alerta.mensagem }}
+                    </h6>
+                    <small class="alert-time">{{ alerta.created_at[:19] }}</small>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center p-4">
+            <p class="text-muted mb-0">Nenhum alerta registrado.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

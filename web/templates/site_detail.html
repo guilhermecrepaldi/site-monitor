@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+{% block title %}{{ site.nome or site.url }} — site-monitor{% endblock %}
+
+{% block content %}
+<!-- Breadcrumb -->
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/">Dashboard</a></li>
+        <li class="breadcrumb-item active" aria-current="page">
+            {{ site.nome or site.url.split('//')[1].split('/')[0] }}
+        </li>
+    </ol>
+</nav>
+
+<!-- Site Header -->
+<div class="d-flex justify-content-between align-items-start mb-4">
+    <div>
+        <h3 class="mb-1">
+            <i class="bi bi-globe me-2"></i>{{ site.nome or site.url }}
+        </h3>
+        <p class="text-muted mb-0">
+            <a href="{{ site.url }}" target="_blank" class="text-break">
+                {{ site.url }}
+            </a>
+        </p>
+        <small class="text-muted">
+            Intervalo: 
+            {% if site.intervalo_minutos >= 60 %}
+                {{ (site.intervalo_minutos / 60)|int }}h
+            {% else %}
+                {{ site.intervalo_minutos }}min
+            {% endif %}
+            &middot;
+            Ultima verificacao: {{ site.ultima_verificacao[:19] if site.ultima_verificacao else 'nunca' }}
+        </small>
+    </div>
+    <div class="d-flex gap-2">
+        <button class="btn btn-outline-secondary btn-sm" onclick="checkNow({{ site.id }})">
+            <i class="bi bi-arrow-clockwise"></i> Verificar agora
+        </button>
+        <button class="btn btn-outline-danger btn-sm" onclick="removeSite({{ site.id }})">
+            <i class="bi bi-trash"></i> Remover
+        </button>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Timeline -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-clock-history me-1"></i>Timeline de Mudancas
+            </div>
+            <div class="card-body">
+                {% if timeline %}
+                <div class="timeline">
+                    {% for item in timeline %}
+                    <div class="timeline-item {% if item.alerta %}changed{% endif %}">
+                        <div class="d-flex justify-content-between">
+                            <strong>
+                                {% if item.alerta %}
+                                    <span class="badge bg-success">Mudanca</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">Snapshot</span>
+                                {% endif %}
+                            </strong>
+                            <small class="text-muted">{{ item.snapshot.captured_at[:19] }}</small>
+                        </div>
+                        <p class="mb-1 mt-1">
+                            <small class="text-muted">
+                                Hash: {{ item.snapshot.hash[:16] }}...
+                                &middot;
+                                Tamanho: {{ (item.snapshot.tamanho / 1024)|round(1) }} KB
+                            </small>
+                        </p>
+                        {% if item.alerta %}
+                        <a href="/site/{{ site.id }}/diff/{{ item.snapshot.id }}" class="btn btn-sm btn-outline-secondary mt-1">
+                            <i class="bi bi-file-diff"></i> Ver diff
+                        </a>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-muted text-center py-4">
+                    <i class="bi bi-camera" style="font-size: 2rem;"></i><br>
+                    Nenhum snapshot ainda. Aguarde a primeira verificacao.
+                </p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Diff Viewer -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-file-diff me-1"></i>Diff Viewer</span>
+                {% if diff_html %}
+                <button id="copy-diff-btn" class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-clipboard"></i> Copiar diff
+                </button>
+                {% endif %}
+            </div>
+            <div class="card-body p-0">
+                {% if diff_html %}
+                    {{ diff_html|safe }}
+                {% else %}
+                    <div class="p-4 text-center text-muted">
+                        <i class="bi bi-file-earmark-diff" style="font-size: 2rem;"></i>
+                        <p class="mt-2">Selecione um snapshot com mudanca na timeline para ver o diff.</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        {% if snapshot_atual %}
+        <!-- Snapshot Info -->
+        <div class="card mt-3">
+            <div class="card-header">
+                <i class="bi bi-info-circle me-1"></i>Detalhes do Snapshot
+            </div>
+            <div class="card-body">
+                <table class="table table-sm mb-0">
+                    <tr>
+                        <td class="text-muted">ID</td>
+                        <td>{{ snapshot_atual.id }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Timestamp</td>
+                        <td>{{ snapshot_atual.captured_at[:19] }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Hash</td>
+                        <td><code>{{ snapshot_atual.hash }}</code></td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Tamanho</td>
+                        <td>{{ (snapshot_atual.tamanho / 1024)|round(1) }} KB</td>
+                    </tr>
+                    {% if snapshot_anterior %}
+                    <tr>
+                        <td class="text-muted">Versao anterior</td>
+                        <td>{{ snapshot_anterior.captured_at[:19] }}</td>
+                    </tr>
+                    {% endif %}
+                </table>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', path='/diff.js') }}"></script>
+<script>
+// Forca verificacao imediata
+function checkNow(siteId) {
+    fetch(`/api/check/${siteId}`)
+        .then(r => r.json())
+        .then(data => {
+            if (data.status === 'ok') {
+                location.reload();
+            }
+        });
+}
+
+// Remove site
+function removeSite(siteId) {
+    if (!confirm('Tem certeza que deseja remover este site e todos os seus snapshots?')) {
+        return;
+    }
+    fetch(`/api/sites/${siteId}`, { method: 'DELETE' })
+        .then(r => r.json())
+        .then(data => {
+            if (data.status === 'ok') {
+                window.location.href = '/';
+            }
+        });
+}
+</script>
+{% endblock %}
